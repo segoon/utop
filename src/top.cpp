@@ -8,8 +8,8 @@
 #include <boost/filesystem.hpp>
 
 #include <ftxui/component/component.hpp>
-#include <ftxui/dom/elements.hpp>  // for text, gauge, operator|, flex, hbox, Element
-#include <ftxui/screen/screen.hpp>  // for Screen
+#include <ftxui/dom/elements.hpp> // for text, gauge, operator|, flex, hbox, Element
+#include <ftxui/screen/screen.hpp> // for Screen
 
 namespace {
 
@@ -24,7 +24,7 @@ struct Snapshot {
   std::unordered_map<pid_t, size_t> by_pid;
 };
 
-std::string ReadProcPidName(const std::string& pid) {
+std::string ReadProcPidName(const std::string &pid) {
   std::ifstream comm(pid + "/comm");
   std::string name;
   comm >> name;
@@ -32,7 +32,7 @@ std::string ReadProcPidName(const std::string& pid) {
   return name;
 }
 
-double ReadProcPidCpuUsage(const std::string& pid) {
+double ReadProcPidCpuUsage(const std::string &pid) {
   std::ifstream ifs(pid + "/sched");
   std::string line;
 
@@ -45,7 +45,8 @@ double ReadProcPidCpuUsage(const std::string& pid) {
 
     auto pos = line.find(' ');
     auto name = std::string_view(line).substr(0, pos);
-    if (name != "se.sum_exec_runtime") continue;
+    if (name != "se.sum_exec_runtime")
+      continue;
 
     auto pos2 = line.rfind(' ');
     auto value = std::string_view(line).substr(pos2 + 1);
@@ -54,12 +55,13 @@ double ReadProcPidCpuUsage(const std::string& pid) {
   }
 }
 
+/// Some func
 Snapshot MakeSnapshot(pid_t pid) {
   Snapshot sn;
 
   auto tasks_dirpath = "/proc/" + std::to_string(pid) + "/task";
   boost::filesystem::directory_iterator it(tasks_dirpath);
-  for (const auto& dir_entry : it) {
+  for (const auto &dir_entry : it) {
     auto pid_path = dir_entry.path().string();
 
     auto name = ReadProcPidName(pid_path);
@@ -73,8 +75,8 @@ Snapshot MakeSnapshot(pid_t pid) {
   return sn;
 }
 
-void DiffSnapshots(Snapshot* sn, const Snapshot& sn_new) {
-  for (auto& thrd : sn->threads) {
+void DiffSnapshots(Snapshot *sn, const Snapshot &sn_new) {
+  for (auto &thrd : sn->threads) {
     auto pid = thrd.pid;
     auto idx = sn_new.by_pid.at(pid);
     auto diff_cpu_usage_ms =
@@ -84,12 +86,12 @@ void DiffSnapshots(Snapshot* sn, const Snapshot& sn_new) {
   }
 }
 
-}  // namespace
+} // namespace
 
 void TopWindow(pid_t pid) {
   using namespace ftxui;
 
-  std::stoul("1665992");  // TODO
+  std::stoul("1665992"); // TODO
   auto sn = MakeSnapshot(pid);
 
   while (true) {
@@ -99,7 +101,7 @@ void TopWindow(pid_t pid) {
     DiffSnapshots(&sn, sn_new);
 
     std::vector<Elements> lines;
-    for (const auto& thrd : sn.threads) {
+    for (const auto &thrd : sn.threads) {
       auto perc = thrd.cpu_usage_ms / 1000.0;
 
       lines.push_back(
