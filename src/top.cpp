@@ -1,8 +1,15 @@
 #include "top.hpp"
 
+#include <chrono>
 #include <iostream>
+#include <thread>
+#include <unordered_map>
 
 #include <boost/filesystem.hpp>
+
+#include <ftxui/component/component.hpp>
+#include <ftxui/dom/elements.hpp>  // for text, gauge, operator|, flex, hbox, Element
+#include <ftxui/screen/screen.hpp>  // for Screen
 
 namespace {
 
@@ -14,6 +21,7 @@ struct Thread {
 
 struct Snapshot {
   std::vector<Thread> threads;
+  std::unordered_map<pid_t, size_t> by_pid;
 };
 
 std::string ReadProcPidName(const std::string& pid) {
@@ -56,21 +64,55 @@ Snapshot MakeSnapshot(pid_t pid) {
 
     auto name = ReadProcPidName(pid_path);
     double cpu_usage = ReadProcPidCpuUsage(pid_path);
+    pid_t pid = std::stoll(dir_entry.path().filename().string());
 
-    sn.threads.push_back({std::stoll(dir_entry.path().filename().string()),
-                          name, int(cpu_usage)});
+    sn.threads.push_back({pid, name, int(cpu_usage)});
+    sn.by_pid.emplace(pid, sn.threads.size() - 1);
   }
 
   return sn;
 }
 
+void DiffSnapshots(Snapshot* sn, const Snapshot& sn_new) {
+  for (auto& thrd : sn->threads) {
+    auto pid = thrd.pid;
+    auto idx = sn_new.by_pid.at(pid);
+    auto diff_cpu_usage_ms =
+        sn_new.threads[idx].cpu_usage_ms - thrd.cpu_usage_ms;
+
+    thrd.cpu_usage_ms = diff_cpu_usage_ms;
+  }
+}
+
 }  // namespace
 
 void TopWindow(pid_t pid) {
-  std::stoul("1665992");
+  using namespace ftxui;
+
+  std::stoul("1665992");  // TODO
   auto sn = MakeSnapshot(pid);
-  for (const auto& thrd : sn.threads) {
-    std::cout << thrd.pid << " " << thrd.name << " " << thrd.cpu_usage_ms
-              << "\n";
+
+  while (true) {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    auto sn_new = MakeSnapshot(pid);
+    DiffSnapshots(&sn, sn_new);
+
+    std::vector<Elements> lines;
+    for (const auto& thrd : sn.threads) {
+      auto perc = thrd.cpu_usage_ms / 1000.0;
+
+      lines.push_back(
+          {text(thrd.name), text(" (" + std::to_string(thrd.pid) + ") "),
+           gauge(perc) | flex, text(" " + std::to_string(100 * perc) + "%")});
+    }
+    auto screen = Screen::Create(Dimension::Full(), Dimension::Full());
+
+    auto document = gridbox(std::move(lines));
+
+    Render(screen, document);
+    screen.Print(); // TODO: loop
+
+    sn = std::move(sn_new);
   }
 }
